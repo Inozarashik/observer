@@ -1,0 +1,32 @@
+package ru.gr05507.infrastructure;
+
+import net.objecthunter.exp4j.Expression;
+import net.objecthunter.exp4j.ExpressionBuilder;
+import ru.gr05507.domain.FormulaParser;
+
+import java.util.function.DoubleUnaryOperator;
+
+public class Exp4jFormulaParser implements FormulaParser {
+
+    @Override
+    public DoubleUnaryOperator parse(String formula) {
+        Expression expression = buildExpression(formula);
+        return x -> evaluateAt(expression, x);
+    }
+
+    private Expression buildExpression(String formula) {
+        try {
+            return new ExpressionBuilder(formula).variables("x").build();
+        } catch (RuntimeException ex) {
+            throw new IllegalArgumentException("Не удалось разобрать формулу: " + ex.getMessage(), ex);
+        }
+    }
+
+    private double evaluateAt(Expression expression, double x) {
+        try {
+            return expression.setVariable("x", x).evaluate();
+        } catch (RuntimeException ex) {
+            throw new IllegalArgumentException("Не удалось вычислить формулу в точке x = " + x, ex);
+        }
+    }
+}

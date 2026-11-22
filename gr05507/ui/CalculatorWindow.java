@@ -1,0 +1,144 @@
+package ru.gr05507.ui;
+
+import ru.gr05507.application.CalculationService;
+import ru.gr05507.domain.Calculation;
+import ru.gr05507.domain.MethodRealisation;
+import ru.gr05507.domain.MethodsRealisation;
+
+import javax.swing.*;
+import javax.swing.event.DocumentEvent;
+import javax.swing.event.DocumentListener;
+import java.awt.*;
+import java.util.List;
+
+public class CalculatorWindow extends JFrame implements CalculatorView {
+
+    private final JTextField formulaField = new JTextField(20);
+    private final JTextField lowerField = new JTextField(10);
+    private final JTextField upperField = new JTextField(10);
+    private final JTextField intervalsField = new JTextField("100", 10);
+    private final JComboBox<MethodRealisation> methodBox = new JComboBox<>(MethodsRealisation.standard().toArray(new MethodRealisation[0]));
+    private final JButton calculateButton = new JButton("Вычислить");
+    private final JButton deleteButton = new JButton("Удалить");
+    private final DefaultListModel<Calculation> listModel = new DefaultListModel<>();
+    private final JList<Calculation> calculationList = new JList<>(listModel);
+
+    private final JLabel statusLabel = new JLabel(" ");
+
+    private final CalculationFormPresenter formPresenter;
+    private final CalculationListPresenter listPresenter;
+    private final CalculationStatusPresenter statusPresenter;
+
+    private final Command calculateCommand;
+    private final Command deleteCommand;
+
+    public CalculatorWindow(CalculationService service) {
+        this.formPresenter = new CalculationFormPresenter(this, service);
+        this.listPresenter = new CalculationListPresenter(this, service);
+        this.statusPresenter = new CalculationStatusPresenter(this, service);
+        this.calculateCommand = new CalculateCommand(this, formPresenter);
+        this.deleteCommand = new DeleteCommand(this, listPresenter);
+
+        setTitle("Определённый интеграл");
+        setDefaultCloseOperation(EXIT_ON_CLOSE);
+        buildLayout();
+        setSize(760, 480);
+        setLocationRelativeTo(null);
+        listPresenter.start();
+        statusPresenter.start();
+        updateButtons();
+    }
+
+    private void buildLayout() {
+        JPanel form = new JPanel(new GridLayout(5, 2, 5, 5));
+        form.add(new JLabel("Формула f(x):"));
+        form.add(formulaField);
+        form.add(new JLabel("Нижний предел a:"));
+        form.add(lowerField);
+        form.add(new JLabel("Верхний предел b:"));
+        form.add(upperField);
+        form.add(new JLabel("Число отрезков n:"));
+        form.add(intervalsField);
+        form.add(new JLabel("Метод:"));
+        form.add(methodBox);
+
+        JPanel buttons = new JPanel(new FlowLayout());
+        buttons.add(calculateButton);
+        buttons.add(deleteButton);
+
+        JPanel top = new JPanel(new BorderLayout(5, 5));
+        top.add(form, BorderLayout.CENTER);
+        top.add(buttons, BorderLayout.SOUTH);
+
+        add(top, BorderLayout.NORTH);
+        add(new JScrollPane(calculationList), BorderLayout.CENTER);
+        statusLabel.setBorder(BorderFactory.createEmptyBorder(3, 8, 3, 8));
+        add(statusLabel, BorderLayout.SOUTH);
+
+        calculationList.setCellRenderer(new DefaultListCellRenderer() {
+            @Override
+            public Component getListCellRendererComponent(JList<?> list, Object value,
+                                                          int index, boolean selected,
+                                                          boolean hasFocus) {
+                super.getListCellRendererComponent(list, value, index, selected, hasFocus);
+                setText(describe((Calculation) value));
+                return this;
+            }
+        });
+
+        calculateButton.addActionListener(e -> calculateCommand.execute());
+        deleteButton.addActionListener(e -> deleteCommand.execute());
+
+        for (JTextField field : List.of(formulaField, lowerField, upperField, intervalsField))
+            field.getDocument().addDocumentListener(new DocumentListener() {
+                @Override public void insertUpdate(DocumentEvent e)  { updateButtons(); }
+                @Override public void removeUpdate(DocumentEvent e)  { updateButtons(); }
+                @Override public void changedUpdate(DocumentEvent e) { updateButtons(); }
+            });
+        calculationList.addListSelectionListener(e -> updateButtons());
+    }
+
+    private void updateButtons() {
+        calculateButton.setEnabled(calculateCommand.canExecute());
+        deleteButton.setEnabled(deleteCommand.canExecute());
+    }
+
+    private String describe(Calculation c) {
+        return "f(x) = " + c.getFormula()
+                + " | [" + String.format("%.4f", c.getLower())
+                + "; " + String.format("%.4f", c.getUpper()) + "]"
+                + " | " + c.getMethod()
+                + " | n = " + c.getIntervals()
+                + " | I = " + String.format("%.8f", c.getResult());
+    }
+
+    @Override public String getFormula()            { return formulaField.getText(); }
+    @Override public String getLowerText()          { return lowerField.getText(); }
+    @Override public String getUpperText()          { return upperField.getText(); }
+    @Override public String getIntervalsText()      { return intervalsField.getText(); }
+    @Override public MethodRealisation getMethod()  { return (MethodRealisation) methodBox.getSelectedItem(); }
+    @Override public Calculation getSelected()      { return calculationList.getSelectedValue(); }
+
+    @Override
+    public void clearForm() {
+        formulaField.setText("");
+        lowerField.setText("");
+        upperField.setText("");
+    }
+
+    @Override
+    public void showCalculations(List<Calculation> calculations) {
+        listModel.clear();
+        for (Calculation c : calculations) listModel.addElement(c);
+    }
+
+    @Override
+    public void showError(String message) {
+        JOptionPane.showMessageDialog(this, message);
+    }
+
+    @Override
+    public void showStatus(String message) {
+        statusLabel.setText(message);
+    }
+}
